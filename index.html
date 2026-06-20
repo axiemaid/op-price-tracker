@@ -67,12 +67,13 @@ async function init() {
   const priceMap = {};
   const salesCountMap = {};
   cardList.forEach(c => {
-    const sales = allSales
-      .filter(s => s.card_id === c.id)
+    const allCardSales = allSales.filter(s => s.card_id === c.id);
+    const gradeASales = allCardSales
+      .filter(s => s.grade === 'A')
       .sort((a, b) => new Date(b.sold_date) - new Date(a.sold_date));
-    salesCountMap[c.id] = sales.length;
-    if (sales.length > 0) {
-      const recent = sales.slice(0, 10);
+    salesCountMap[c.id] = allCardSales.length;
+    if (gradeASales.length > 0) {
+      const recent = gradeASales.slice(0, 10);
       priceMap[c.id] = Math.round(recent.reduce((sum, s) => sum + s.price_jpy, 0) / recent.length);
     } else {
       priceMap[c.id] = null;
