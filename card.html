@@ -184,8 +184,8 @@ async function init() {
       data: byGrade[grade].map(d => ({ x: d.x, y: d.y, title: d.title, id: d.id })),
       backgroundColor: cfg.color,
       borderColor: cfg.color,
-      pointRadius: window.innerWidth < 600 ? 4 : 7,
-      pointHoverRadius: window.innerWidth < 600 ? 6 : 10,
+      pointRadius: window.innerWidth < 600 ? 4 : 5,
+      pointHoverRadius: window.innerWidth < 600 ? 6 : 8,
       pointStyle: 'circle',
       showLine: false,
     }));
