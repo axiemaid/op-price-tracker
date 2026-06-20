@@ -32,17 +32,22 @@ h1{text-align:center;font-size:1.5em;color:#fff;margin-bottom:4px}
 .no-data{text-align:center;color:#8a8070;padding:60px 20px;font-size:1.1em}
 .chart-wrap{max-width:960px;margin:0 auto;background:#131a2e;border-radius:12px;padding:24px;border:1px solid #1e2d4a}
 canvas{width:100%!important}
-.stats{max-width:960px;margin:20px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
-.stat-card{background:#131a2e;border-radius:10px;padding:16px;text-align:center;border:1px solid #1e2d4a}
-.stat-card .grade-label{font-size:.75em;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:700}
-.stat-card .price-big{font-size:1.6em;font-weight:700;color:#fff}
-.stat-card .detail{font-size:.75em;color:#8a8070;margin-top:4px}
+.price-row{max-width:960px;margin:20px auto 0;background:#131a2e;border:1px solid #1e2d4a;border-radius:10px;padding:16px 20px;display:flex;justify-content:space-around;flex-wrap:wrap;gap:12px}
+.price-col{text-align:center;flex:1;min-width:100px}
+.price-col .grade-label{font-size:.7em;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-weight:700}
+.price-col .price-big{font-size:1.5em;font-weight:700;color:#fff}
+.price-col .detail{font-size:.7em;color:#8a8070;margin-top:2px}
 .history-box{max-width:960px;margin:20px auto 0;background:#131a2e;border:1px solid #1e2d4a;border-radius:10px;padding:16px 20px}
 .history-box h2{font-size:1em;color:#fff;margin-bottom:12px}
 .grade-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
 .grade-tab{padding:6px 14px;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;border:1px solid #1e2d4a;background:transparent;color:#8a8070;transition:all .15s}
 .grade-tab:hover{border-color:#4a4438}
 .grade-tab.active{color:#fff}
+.sale-list-wrap{max-height:400px;overflow-y:auto}
+.sale-list-wrap::-webkit-scrollbar{width:6px}
+.sale-list-wrap::-webkit-scrollbar-track{background:#0a0f1a;border-radius:3px}
+.sale-list-wrap::-webkit-scrollbar-thumb{background:#1e2d4a;border-radius:3px}
+.sale-list-wrap::-webkit-scrollbar-thumb:hover{background:#2e3d5a}
 .sale-list{list-style:none}
 .sale-list li{display:flex;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid #ffffff08;font-size:.8em}
 .sale-list .sale-date{color:#8a8070;flex-shrink:0;width:80px}
@@ -80,12 +85,12 @@ canvas{width:100%!important}
   <canvas id="priceChart"></canvas>
 </div>
 
-<div class="stats" id="statsGrid"></div>
+<div class="price-row" id="priceRow"></div>
 
 <div class="history-box" id="historyBox" style="display:none">
   <h2>Sales History</h2>
   <div class="grade-tabs" id="gradeTabs"></div>
-  <ul class="sale-list" id="saleList"></ul>
+  <div class="sale-list-wrap"><ul class="sale-list" id="saleList"></ul></div>
 </div>
 
 <p class="footer">Data sourced from Mercari Japan sold listings · Updated <span id="lastUpdate">—</span></p>
@@ -264,8 +269,8 @@ async function init() {
     },
   });
 
-  // Stats cards (price only, no sale lists)
-  const statsGrid = document.getElementById('statsGrid');
+  // Grade price row
+  const priceRow = document.getElementById('priceRow');
   ['A', 'B', 'C', 'D'].forEach(g => {
     const pts = byGrade[g];
     if (!pts || pts.length === 0) return;
@@ -273,14 +278,14 @@ async function init() {
     const sorted = [...pts].sort((a, b) => new Date(b.x) - new Date(a.x));
     const recent10 = sorted.slice(0, 10).map(s => s.y);
     const recentMean = Math.round(recent10.reduce((a, b) => a + b, 0) / recent10.length);
-    const card = document.createElement('div');
-    card.className = 'stat-card';
-    card.innerHTML = `
+    const col = document.createElement('div');
+    col.className = 'price-col';
+    col.innerHTML = `
       <div class="grade-label" style="color:${cfg.color}">${cfg.label}</div>
       <div class="price-big">¥${recentMean.toLocaleString()}</div>
       <div class="detail">Last ${recent10.length} avg</div>
     `;
-    statsGrid.appendChild(card);
+    priceRow.appendChild(col);
   });
 
   // Sales history box
