@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OP Hyper Battle — Price Tracker</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:#0a0f1a;color:#e8e0d4;padding:20px;min-height:100vh}
+h1{text-align:center;font-size:1.5em;color:#fff;margin-bottom:4px}
+.subtitle{text-align:center;color:#8a8070;font-size:.85em;margin-bottom:20px}
+.controls{max-width:960px;margin:0 auto 20px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.controls select,.controls input{background:#131a2e;border:1px solid #1e2d4a;color:#e8e0d4;padding:8px 12px;border-radius:6px;font-size:.85em}
+.controls select:focus,.controls input:focus{outline:none;border-color:#d4a94c}
+.controls label{color:#8a8070;font-size:.8em}
+.grid{max-width:960px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}
+.card{background:#131a2e;border:1px solid #1e2d4a;border-radius:10px;overflow:hidden;transition:border-color .2s,transform .15s;cursor:pointer;text-decoration:none;color:inherit;display:flex;flex-direction:column}
+.card:hover{border-color:#d4a94c;transform:translateY(-2px)}
+.card img{width:100%;aspect-ratio:3/4;object-fit:contain;background:#0d1220;padding:8px}
+.card .info{padding:10px 12px;flex:1;display:flex;flex-direction:column;gap:4px}
+.card .card-id{font-size:.7em;color:#8a8070;text-transform:uppercase;letter-spacing:1px}
+.card .card-name{font-size:.9em;font-weight:600;color:#fff}
+.card .card-price{font-size:1.1em;font-weight:700;color:#d4a94c}
+.card .card-sales{font-size:.7em;color:#8a8070}
+.card .no-sales{font-size:.8em;color:#4a4438;font-style:italic}
+.footer{text-align:center;color:#4a4438;font-size:.7em;margin-top:32px}
+@media(max-width:600px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+  .card .info{padding:8px 10px}
+  h1{font-size:1.2em}
+}
+</style>
+</head>
+<body>
+
+<h1>One Piece Hyper Battle Carddass</h1>
+<p class="subtitle">Mercari Japan Price Tracker — 42 Cards</p>
+
+<div class="controls">
+  <div>
+    <label>Sort by</label>
+    <select id="sortBy">
+      <option value="id">Card ID</option>
+      <option value="price-asc">Price ↑</option>
+      <option value="price-desc">Price ↓</option>
+    </select>
+  </div>
+  <div>
+    <label>Filter</label>
+    <input type="text" id="filterInput" placeholder="Card ID or name…">
+  </div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<p class="footer">Data sourced from Mercari Japan sold listings</p>
+
+<script>
+async function init() {
+  const [cardsRes, salesRes] = await Promise.all([fetch('cards.json'), fetch('sales.json')]);
+  const cardsData = await cardsRes.json();
+  const allSales = await salesRes.json();
+  const cards = cardsData.cards || cardsData;
+  const cardList = Array.isArray(cards) ? cards : Object.values(cards);
+
+  // Precompute last-10 mean per card
+  const priceMap = {};
+  const salesCountMap = {};
+  cardList.forEach(c => {
+    const sales = allSales
+      .filter(s => s.card_id === c.id)
+      .sort((a, b) => new Date(b.sold_date) - new Date(a.sold_date));
+    salesCountMap[c.id] = sales.length;
+    if (sales.length > 0) {
+      const recent = sales.slice(0, 10);
+      priceMap[c.id] = Math.round(recent.reduce((sum, s) => sum + s.price_jpy, 0) / recent.length);
+    } else {
+      priceMap[c.id] = null;
+    }
+  });
+
+  function render(sortBy, filterText) {
+    let filtered = cardList;
+    if (filterText) {
+      const q = filterText.toLowerCase();
+      filtered = cardList.filter(c =>
+        c.id.toLowerCase().includes(q) ||
+        (c.name?.en || '').toLowerCase().includes(q) ||
+        (c.name?.ja || '').includes(q) ||
+        (c.title?.en || '').toLowerCase().includes(q) ||
+        (c.title?.ja || '').includes(q)
+      );
+    }
+
+    let sorted = [...filtered];
+    if (sortBy === 'price-asc') {
+      sorted.sort((a, b) => (priceMap[a.id] ?? Infinity) - (priceMap[b.id] ?? Infinity));
+    } else if (sortBy === 'price-desc') {
+      sorted.sort((a, b) => (priceMap[b.id] ?? -1) - (priceMap[a.id] ?? -1));
+    } else {
+      sorted.sort((a, b) => a.id.localeCompare(b.id));
+    }
+
+    const grid = document.getElementById('grid');
+    grid.innerHTML = sorted.map(c => {
+      const price = priceMap[c.id];
+      const count = salesCountMap[c.id];
+      const displayName = c.title?.en || c.name?.en || c.id.toUpperCase();
+      return `<a href="card.html?id=${c.id}" class="card">
+        <img src="images/${c.id}.png" alt="${c.id}" onerror="this.style.display='none'">
+        <div class="info">
+          <div class="card-id">${c.id.toUpperCase()}</div>
+          <div class="card-name">${displayName}</div>
+          ${price != null
+            ? `<div class="card-price">¥${price.toLocaleString()}</div><div class="card-sales">${count} sale${count !== 1 ? 's' : ''}</div>`
+            : '<div class="no-sales">No sales data</div>'}
+        </div>
+      </a>`;
+    }).join('');
+  }
+
+  const sortEl = document.getElementById('sortBy');
+  const filterEl = document.getElementById('filterInput');
+  const update = () => render(sortEl.value, filterEl.value);
+  sortEl.addEventListener('change', update);
+  filterEl.addEventListener('input', update);
+  update();
+}
+
+init();
+</script>
+</body>
+</html>

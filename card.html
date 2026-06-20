@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Price Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:#0a0f1a;color:#e8e0d4;padding:20px;min-height:100vh}
+a{color:#d4a94c;text-decoration:none}
+a:hover{text-decoration:underline}
+.back{display:inline-block;margin-bottom:16px;font-size:.85em}
+h1{text-align:center;font-size:1.5em;color:#fff;margin-bottom:4px}
+.subtitle{text-align:center;color:#8a8070;font-size:.85em;margin-bottom:24px}
+.card-header{display:flex;gap:24px;align-items:stretch;max-width:960px;margin:0 auto 24px;flex-wrap:wrap}
+.card-header img{height:240px;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.5);flex-shrink:0}
+.card-details{background:#131a2e;border:1px solid #1e2d4a;border-radius:10px;padding:16px 20px;flex:1;min-width:280px}
+.card-details .field{display:flex;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid #1e2d4a}
+.card-details .field:last-child{border-bottom:none}
+.card-details .field-label{color:#8a8070;font-size:.7em;text-transform:uppercase;letter-spacing:.5px;width:70px;flex-shrink:0}
+.card-details .field-values{display:flex;gap:8px;flex-wrap:wrap}
+.card-details .copyable{cursor:pointer;font-size:.85em;padding:2px 8px;border-radius:4px;transition:background .15s;position:relative}
+.card-details .copyable:hover{background:#1e2d4a}
+.card-details .copyable.en{color:#e8e0d4}
+.card-details .copyable.ja{color:#d4a94c}
+.card-details .copy-icon{font-size:.7em;margin-left:4px}
+.card-details .static{font-size:.85em;color:#8a8070;padding:2px 8px}
+.card-details .copyable .copied{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:.65em;color:#d4a94c;opacity:0;transition:opacity .2s;pointer-events:none}
+.card-details .copyable .copied.show{opacity:1}
+.no-data{text-align:center;color:#8a8070;padding:60px 20px;font-size:1.1em}
+.chart-wrap{max-width:960px;margin:0 auto;background:#131a2e;border-radius:12px;padding:24px;border:1px solid #1e2d4a}
+canvas{width:100%!important}
+.stats{max-width:960px;margin:20px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.stat-card{background:#131a2e;border-radius:10px;padding:16px;text-align:center;border:1px solid #1e2d4a}
+.stat-card .grade-label{font-size:.75em;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:700}
+.stat-card .price-big{font-size:1.6em;font-weight:700;color:#fff}
+.stat-card .detail{font-size:.75em;color:#8a8070;margin-top:4px}
+.sale-list{list-style:none;margin-top:12px;text-align:left;border-top:1px solid #ffffff10;padding-top:8px}
+.sale-list li{display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid #ffffff08;font-size:.75em}
+.sale-list .sale-date{color:#8a8070;flex-shrink:0;width:80px}
+.sale-list .sale-price{color:#fff;font-weight:600;flex-shrink:0;width:60px;text-align:right}
+.sale-list .sale-title{color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sale-link{display:flex;gap:8px;align-items:baseline;text-decoration:none;color:inherit;width:100%}
+.sale-link:hover .sale-title{color:#aaa}
+.sale-link:hover .sale-price{color:#d4a94c}
+.footer{text-align:center;color:#4a4438;font-size:.7em;margin-top:32px}
+@media(max-width:700px){
+  .card-header{flex-direction:column;align-items:center}
+  .card-header img{height:220px}
+  .card-details{min-width:0;width:100%}
+}
+@media(max-width:600px){
+  .card-header img{height:180px}
+  .card-details .field-label{width:55px;font-size:.65em}
+  .card-details .copyable{font-size:.78em}
+  .chart-wrap{padding:12px 8px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  h1{font-size:1.2em}
+}
+</style>
+</head>
+<body>
+
+<a href="index.html" class="back">← All Cards</a>
+<h1 id="cardTitle"></h1>
+<p class="subtitle" id="cardSubtitle"></p>
+
+<div class="card-header" id="cardHeader"></div>
+
+<div class="chart-wrap" id="chartWrap" style="display:none">
+  <canvas id="priceChart"></canvas>
+</div>
+
+<div class="stats" id="statsGrid"></div>
+
+<p class="footer">Data sourced from Mercari Japan sold listings · Updated <span id="lastUpdate">—</span></p>
+
+<script>
+function copyText(el, text) {
+  navigator.clipboard.writeText(text);
+  const badge = el.querySelector('.copied');
+  badge.classList.add('show');
+  setTimeout(() => badge.classList.remove('show'), 1000);
+}
+
+const GRADE_CONFIG = {
+  A: { color: '#d4a94c', label: 'Grade A (Near Mint)' },
+  B: { color: '#5b9bd5', label: 'Grade B (Good)' },
+  C: { color: '#a78bba', label: 'Grade C (Fair)' },
+  D: { color: '#8c7a6b', label: 'Grade D (Poor)' },
+};
+
+async function init() {
+  const params = new URLSearchParams(location.search);
+  const cardId = params.get('id');
+  if (!cardId) { document.getElementById('cardTitle').textContent = 'No card specified'; return; }
+
+  const [cardsRes, salesRes] = await Promise.all([fetch('cards.json'), fetch('sales.json')]);
+  const cardsData = await cardsRes.json();
+  const allSales = await salesRes.json();
+
+  const cards = cardsData.cards || cardsData;
+  const card = (Array.isArray(cards) ? cards : Object.values(cards)).find(c => c.id === cardId);
+  if (!card) { document.getElementById('cardTitle').textContent = 'Card not found: ' + cardId; return; }
+
+  const sales = allSales.filter(s => s.card_id === cardId);
+
+  // Title
+  const displayName = card.name?.en || card.id.toUpperCase();
+  const titleText = card.title?.en ? card.title.en : '';
+  document.getElementById('cardTitle').textContent = card.id.toUpperCase() + ' ' + (titleText || displayName);
+  document.title = card.id.toUpperCase() + ' ' + (titleText || displayName) + ' — Price Tracker';
+  document.getElementById('cardSubtitle').textContent =
+    (card.series || 'One Piece Hyper Battle') + ' (' + (card.released || '') + ') — Mercari Japan Sold Prices';
+
+  // Card header
+  const headerEl = document.getElementById('cardHeader');
+  const imgFile = card.id + '.png';
+  const fields = [];
+  if (card.name) {
+    const vals = [];
+    if (card.name.en) vals.push(`<span class="copyable en" onclick="copyText(this,'${card.name.en}')">${card.name.en}<span class="copy-icon">📋</span><span class="copied">Copied!</span></span>`);
+    if (card.name.ja) vals.push(`<span class="copyable ja" onclick="copyText(this,'${card.name.ja}')">${card.name.ja}<span class="copy-icon">📋</span><span class="copied">Copied!</span></span>`);
+    fields.push({ label: 'Name', values: vals.join('') });
+  }
+  if (card.title) {
+    const vals = [];
+    if (card.title.en) vals.push(`<span class="copyable en" onclick="copyText(this,'${card.title.en}')">${card.title.en}<span class="copy-icon">📋</span><span class="copied">Copied!</span></span>`);
+    if (card.title.ja) vals.push(`<span class="copyable ja" onclick="copyText(this,'${card.title.ja}')">${card.title.ja}<span class="copy-icon">📋</span><span class="copied">Copied!</span></span>`);
+    fields.push({ label: 'Title', values: vals.join('') });
+  }
+  if (card.types) fields.push({ label: 'Type', values: `<span class="static">${card.types.join(', ')}</span>` });
+  if (card.set) fields.push({ label: 'Set', values: `<span class="static">${card.set}</span>` });
+  if (card.released) fields.push({ label: 'Released', values: `<span class="static">${card.released}</span>` });
+  if (card.power != null) {
+    const powerStr = card.powerUp ? card.power + ' → ' + card.powerUp : String(card.power);
+    fields.push({ label: 'Power', values: `<span class="static">${powerStr}</span>` });
+  }
+
+  headerEl.innerHTML = `
+    <img src="images/${imgFile}" alt="${card.id}" onerror="this.style.display='none'">
+    <div class="card-details">
+      ${fields.map(f => `<div class="field"><span class="field-label">${f.label}</span><div class="field-values">${f.values}</div></div>`).join('')}
+    </div>
+  `;
+
+  if (sales.length === 0) {
+    document.getElementById('statsGrid').innerHTML = '<div class="no-data">No sales data yet for this card.</div>';
+    return;
+  }
+
+  // Chart
+  document.getElementById('chartWrap').style.display = '';
+  const byGrade = {};
+  sales.forEach(s => {
+    if (!byGrade[s.grade]) byGrade[s.grade] = [];
+    byGrade[s.grade].push({ x: s.sold_date, y: s.price_jpy, title: s.title, id: s.item_id });
+  });
+
+  const datasets = Object.entries(GRADE_CONFIG)
+    .filter(([g]) => byGrade[g] && byGrade[g].length > 0)
+    .map(([grade, cfg]) => ({
+      label: cfg.label,
+      data: byGrade[grade].map(d => ({ x: d.x, y: d.y, title: d.title, id: d.id })),
+      backgroundColor: cfg.color,
+      borderColor: cfg.color,
+      pointRadius: window.innerWidth < 600 ? 4 : 7,
+      pointHoverRadius: window.innerWidth < 600 ? 6 : 10,
+      pointStyle: 'circle',
+      showLine: false,
+    }));
+
+  // Trend lines
+  Object.entries(GRADE_CONFIG).forEach(([grade, cfg]) => {
+    const pts = byGrade[grade];
+    if (!pts || pts.length < 3) return;
+    const sorted = [...pts].sort((a, b) => new Date(a.x) - new Date(b.x));
+    const xs = sorted.map(p => new Date(p.x).getTime());
+    const ys = sorted.map(p => p.y);
+    const n = xs.length;
+    const sumX = xs.reduce((a, b) => a + b, 0);
+    const sumY = ys.reduce((a, b) => a + b, 0);
+    const sumXY = xs.reduce((a, x, i) => a + x * ys[i], 0);
+    const sumX2 = xs.reduce((a, x) => a + x * x, 0);
+    const denom = n * sumX2 - sumX * sumX;
+    if (denom === 0) return;
+    const slope = (n * sumXY - sumX * sumY) / denom;
+    const intercept = (sumY - slope * sumX) / n;
+    datasets.push({
+      label: grade + ' Trend',
+      data: [
+        { x: sorted[0].x, y: Math.round(slope * xs[0] + intercept) },
+        { x: sorted[sorted.length - 1].x, y: Math.round(slope * xs[xs.length - 1] + intercept) },
+      ],
+      borderColor: cfg.color + '66',
+      borderWidth: 2,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      showLine: true,
+      fill: false,
+    });
+  });
+
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: window.innerWidth < 600 ? 1.2 : 2,
+      scales: {
+        x: {
+          type: 'time',
+          time: { unit: 'week', tooltipFormat: 'yyyy-MM-dd', displayFormats: { week: 'MMM d', day: 'MMM d' } },
+          title: { display: window.innerWidth >= 600, text: 'Sold Date', color: '#8a8070' },
+          grid: { color: '#1e2d4a' },
+          ticks: { color: '#8a8070', maxRotation: 45, font: { size: window.innerWidth < 600 ? 9 : 12 } },
+        },
+        y: {
+          title: { display: window.innerWidth >= 600, text: 'Price (¥)', color: '#8a8070' },
+          grid: { color: '#1e2d4a' },
+          ticks: { color: '#8a8070', callback: v => '¥' + v.toLocaleString(), font: { size: window.innerWidth < 600 ? 9 : 12 } },
+          beginAtZero: true,
+        },
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#e8e0d4',
+            usePointStyle: true,
+            padding: window.innerWidth < 600 ? 8 : 16,
+            font: { size: window.innerWidth < 600 ? 10 : 12 },
+            filter: item => !item.text.includes('Trend'),
+          },
+        },
+        tooltip: {
+          callbacks: {
+            title: ctx => ctx[0]?.raw?.x || '',
+            label: ctx => {
+              const d = ctx.raw;
+              const lines = ['¥' + d.y.toLocaleString() + ' (' + ctx.dataset.label + ')'];
+              if (d.title) lines.push(d.title.length > 50 ? d.title.slice(0, 50) + '…' : d.title);
+              return lines;
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Stats cards
+  const statsGrid = document.getElementById('statsGrid');
+  ['A', 'B', 'C', 'D'].forEach(g => {
+    const pts = byGrade[g];
+    if (!pts || pts.length === 0) return;
+    const cfg = GRADE_CONFIG[g];
+    const sorted = [...pts].sort((a, b) => new Date(b.x) - new Date(a.x));
+    const recent10 = sorted.slice(0, 10).map(s => s.y);
+    const recentMean = Math.round(recent10.reduce((a, b) => a + b, 0) / recent10.length);
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    card.innerHTML = `
+      <div class="grade-label" style="color:${cfg.color}">${cfg.label}</div>
+      <div class="price-big">¥${recentMean.toLocaleString()}</div>
+      <div class="detail">Last ${recent10.length} avg</div>
+      <ul class="sale-list">
+        ${sorted.map(s => `<li><a href="https://jp.mercari.com/item/${s.id}" target="_blank" rel="noopener" class="sale-link"><span class="sale-date">${s.x}</span><span class="sale-price">¥${s.y.toLocaleString()}</span><span class="sale-title">${(s.title||'').length > 40 ? s.title.slice(0,40)+'…' : s.title}</span></a></li>`).join('')}
+      </ul>
+    `;
+    statsGrid.appendChild(card);
+  });
+
+  // Last update
+  const dates = sales.map(s => new Date(s.logged_at));
+  if (dates.length) {
+    document.getElementById('lastUpdate').textContent =
+      new Date(Math.max(...dates)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+}
+
+init();
+</script>
+</body>
+</html>
