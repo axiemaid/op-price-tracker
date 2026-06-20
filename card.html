@@ -32,11 +32,12 @@ h1{text-align:center;font-size:1.5em;color:#fff;margin-bottom:4px}
 .no-data{text-align:center;color:#8a8070;padding:60px 20px;font-size:1.1em}
 .chart-wrap{max-width:960px;margin:0 auto;background:#131a2e;border-radius:12px;padding:24px;border:1px solid #1e2d4a}
 canvas{width:100%!important}
-.price-row{max-width:960px;margin:20px auto 0;background:#131a2e;border:1px solid #1e2d4a;border-radius:10px;padding:16px 20px;display:flex;justify-content:space-around;flex-wrap:wrap;gap:12px}
-.price-col{text-align:center;flex:1;min-width:100px}
-.price-col .grade-label{font-size:.7em;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-weight:700}
-.price-col .price-big{font-size:1.5em;font-weight:700;color:#fff}
-.price-col .detail{font-size:.7em;color:#8a8070;margin-top:2px}
+.price-row{max-width:960px;margin:20px auto 0;background:#131a2e;border:1px solid #1e2d4a;border-radius:10px;padding:16px 20px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.price-col{text-align:center;display:flex;flex-direction:column;align-items:center}
+.price-col .grade-label{font-size:.7em;text-transform:uppercase;letter-spacing:1px;font-weight:700;min-height:2.4em;display:flex;align-items:center;justify-content:center}
+.price-col .price-big{font-size:1.5em;font-weight:700;color:#fff;min-height:1.4em;display:flex;align-items:center}
+.price-col .detail{font-size:.7em;color:#8a8070;min-height:1.2em;display:flex;align-items:center}
+@media(max-width:600px){.price-row{grid-template-columns:repeat(2,1fr)}}
 .history-box{max-width:960px;margin:20px auto 0;background:#131a2e;border:1px solid #1e2d4a;border-radius:10px;padding:16px 20px}
 .history-box h2{font-size:1em;color:#fff;margin-bottom:12px}
 .grade-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
