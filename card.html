@@ -37,10 +37,17 @@ canvas{width:100%!important}
 .stat-card .grade-label{font-size:.75em;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:700}
 .stat-card .price-big{font-size:1.6em;font-weight:700;color:#fff}
 .stat-card .detail{font-size:.75em;color:#8a8070;margin-top:4px}
-.sale-list{list-style:none;margin-top:12px;text-align:left;border-top:1px solid #ffffff10;padding-top:8px}
-.sale-list li{display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid #ffffff08;font-size:.75em}
+.history-box{max-width:960px;margin:20px auto 0;background:#131a2e;border:1px solid #1e2d4a;border-radius:10px;padding:16px 20px}
+.history-box h2{font-size:1em;color:#fff;margin-bottom:12px}
+.grade-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.grade-tab{padding:6px 14px;border-radius:6px;font-size:.8em;font-weight:600;cursor:pointer;border:1px solid #1e2d4a;background:transparent;color:#8a8070;transition:all .15s}
+.grade-tab:hover{border-color:#4a4438}
+.grade-tab.active{color:#fff}
+.sale-list{list-style:none}
+.sale-list li{display:flex;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid #ffffff08;font-size:.8em}
 .sale-list .sale-date{color:#8a8070;flex-shrink:0;width:80px}
-.sale-list .sale-price{color:#fff;font-weight:600;flex-shrink:0;width:60px;text-align:right}
+.sale-list .sale-grade{flex-shrink:0;width:20px;font-size:.7em;font-weight:700;text-align:center}
+.sale-list .sale-price{color:#fff;font-weight:600;flex-shrink:0;width:70px;text-align:right}
 .sale-list .sale-title{color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sale-link{display:flex;gap:8px;align-items:baseline;text-decoration:none;color:inherit;width:100%}
 .sale-link:hover .sale-title{color:#aaa}
@@ -74,6 +81,12 @@ canvas{width:100%!important}
 </div>
 
 <div class="stats" id="statsGrid"></div>
+
+<div class="history-box" id="historyBox" style="display:none">
+  <h2>Sales History</h2>
+  <div class="grade-tabs" id="gradeTabs"></div>
+  <ul class="sale-list" id="saleList"></ul>
+</div>
 
 <p class="footer">Data sourced from Mercari Japan sold listings · Updated <span id="lastUpdate">—</span></p>
 
@@ -251,7 +264,7 @@ async function init() {
     },
   });
 
-  // Stats cards
+  // Stats cards (price only, no sale lists)
   const statsGrid = document.getElementById('statsGrid');
   ['A', 'B', 'C', 'D'].forEach(g => {
     const pts = byGrade[g];
@@ -266,12 +279,50 @@ async function init() {
       <div class="grade-label" style="color:${cfg.color}">${cfg.label}</div>
       <div class="price-big">¥${recentMean.toLocaleString()}</div>
       <div class="detail">Last ${recent10.length} avg</div>
-      <ul class="sale-list">
-        ${sorted.map(s => `<li><a href="https://jp.mercari.com/item/${s.id}" target="_blank" rel="noopener" class="sale-link"><span class="sale-date">${s.x}</span><span class="sale-price">¥${s.y.toLocaleString()}</span><span class="sale-title">${(s.title||'').length > 40 ? s.title.slice(0,40)+'…' : s.title}</span></a></li>`).join('')}
-      </ul>
     `;
     statsGrid.appendChild(card);
   });
+
+  // Sales history box
+  const allSorted = sales.slice().sort((a, b) => new Date(b.sold_date) - new Date(a.sold_date));
+  const historyBox = document.getElementById('historyBox');
+  const gradeTabs = document.getElementById('gradeTabs');
+  const saleListEl = document.getElementById('saleList');
+  historyBox.style.display = '';
+
+  const availableGrades = ['A','B','C','D'].filter(g => byGrade[g] && byGrade[g].length > 0);
+  const tabs = ['All', ...availableGrades];
+  let activeFilter = 'All';
+
+  function renderTabs() {
+    gradeTabs.innerHTML = tabs.map(t => {
+      const isActive = t === activeFilter;
+      const cfg = GRADE_CONFIG[t];
+      const activeStyle = isActive
+        ? (cfg ? `background:${cfg.color}22;border-color:${cfg.color};color:${cfg.color}` : 'background:#d4a94c22;border-color:#d4a94c;color:#d4a94c')
+        : '';
+      return `<button class="grade-tab${isActive ? ' active' : ''}" style="${activeStyle}" data-grade="${t}">${t}</button>`;
+    }).join('');
+    gradeTabs.querySelectorAll('.grade-tab').forEach(btn => {
+      btn.addEventListener('click', () => { activeFilter = btn.dataset.grade; renderTabs(); renderSales(); });
+    });
+  }
+
+  function renderSales() {
+    const filtered = activeFilter === 'All' ? allSorted : allSorted.filter(s => s.grade === activeFilter);
+    saleListEl.innerHTML = filtered.map(s => {
+      const cfg = GRADE_CONFIG[s.grade] || { color: '#8a8070' };
+      return `<li><a href="https://jp.mercari.com/item/${s.item_id}" target="_blank" rel="noopener" class="sale-link">
+        <span class="sale-date">${s.sold_date}</span>
+        <span class="sale-grade" style="color:${cfg.color}">${s.grade}</span>
+        <span class="sale-price">¥${s.price_jpy.toLocaleString()}</span>
+        <span class="sale-title">${(s.title||'').length > 45 ? s.title.slice(0,45)+'…' : s.title}</span>
+      </a></li>`;
+    }).join('');
+  }
+
+  renderTabs();
+  renderSales();
 
   // Last update
   const dates = sales.map(s => new Date(s.logged_at));
